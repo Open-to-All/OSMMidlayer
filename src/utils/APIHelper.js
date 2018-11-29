@@ -10,7 +10,10 @@ const headers = new Headers(
     }
 );
 
-const defaultTags = "<tag k=\"project\" v=\"OSM-Midlayer\"";
+const defaultTags = "<tag k=\"project\" v=\"OSM-Midlayer\">";
+
+const endpoint = 'https://master.apis.dev.openstreetmap.org/api/0.6/';
+// const endpoint =  'https://api.openstreetmap.org/api/0.6';
 
 // TODO TODO TODO - Handle adding project tag
 /* CHANGESET */
@@ -77,13 +80,13 @@ export async function addNode(changeset: number,  tags?: string, lat: number, lo
 
 export async function readNode(id: number) {
     try {
-            const response = await fetch(
-                `https://master.apis.dev.openstreetmap.org/api/0.6/node/${id}`,
-                {
-                    method: 'GET',
-                    headers
-                }
-            );
+        const response = await fetch(
+            `https://master.apis.dev.openstreetmap.org/api/0.6/node/${id}`,
+            {
+                method: 'GET',
+                headers
+            }
+        );
         const parser = new DOMParser();
         const nodeXml = parser.parseFromString(response.text(), "text/xml");
         return <Node xmlString={nodeXml.getElementsByTagName("node")[0]}/>; // TODO - React Component or ES6 Class?
@@ -259,7 +262,7 @@ export async function handleCurbRampShapeFile(geojsons, changeset) {
     let response = [];
 
     for (const geojson of geojsons) {
-        let tags = '';
+        let tags = defaultTags;
         let description = '';
         // Parse Keys
         console.log(geojson);
