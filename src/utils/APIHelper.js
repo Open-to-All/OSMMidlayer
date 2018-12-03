@@ -13,21 +13,23 @@ const headers = new Headers(
 const defaultTags = "<tag k=\"project\" v=\"OSM-Midlayer\">";
 
 const endpoint = 'https://master.apis.dev.openstreetmap.org/api/0.6/';
-// const endpoint =  'https://api.openstreetmap.org/api/0.6';
+// const endpoint =  'https://api.openstreetmap.org/api/0.6/';
 
 // TODO TODO TODO - Handle adding project tag
 /* CHANGESET */
 
 //TODO - Add error code handling
 // Will want to store this as a state
-export async function initChangeset(comment?: string) {
+
+// TODO - take a look at other tags https://wiki.openstreetmap.org/wiki/Changeset#Tags_on_changesets
+export async function initChangeset(comment = "Playing with API") {
     const changeset_xml = "<osm>\n" +
         "  <changeset>\n" +
         "    <tag k=\"created_by\" v=\"OSM-Midlayer\"/>\n" +
-        "    <tag k=\"comment\" v=\"Playing with API\"/>\n" +
+        `    <tag k="comment" v="${comment}"/>\n` +
         "  </changeset>\n" +
         "</osm>";
-
+    console.log(changeset_xml);
     try {
         const initChangesetResponse = await fetch(
             'https://master.apis.dev.openstreetmap.org/api/0.6/changeset/create',

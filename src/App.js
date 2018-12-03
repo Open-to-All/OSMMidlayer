@@ -32,6 +32,7 @@ class App extends Component {
             ullon: '',
             lrlat: '',
             lrlon: '',
+            dsc: '',
         };
 
         this.handleLat = this.handleLat.bind(this);
@@ -58,6 +59,8 @@ class App extends Component {
         this.handleULLon = this.handleULLon.bind(this);
         this.handleLRLat = this.handleLRLat.bind(this);
         this.handleLRLon = this.handleLRLon.bind(this);
+
+        this.handleChangesetDesc = this.handleChangesetDesc.bind(this);
     }
 
     render() {
@@ -73,9 +76,19 @@ class App extends Component {
 
     renderGenerateChangeset() {
         return (
-            <button onClick={this.handleNewChangeset.bind(this)}>
-                {`Generate New Changeset: ${this.state.changeset}`}
-            </button>
+            <form onSubmit={this.handleNewChangeset.bind(this)}>
+                Current Changeset: {this.state.changeset}
+                <br/>
+                <label>
+                    Changeset Description:
+                    <textarea value={this.state.csd} onChange={this.handleChangesetDesc}/>
+                </label>
+                <br/>
+                <input type="submit" value="Create Changeset"/>
+            </form>
+            // <button onClick={this.handleNewChangeset.bind(this)}>
+            //     {`Generate New Changeset: ${this.state.changeset}`}
+            // </button>
         )
     }
 
@@ -148,9 +161,7 @@ class App extends Component {
     renderFileInputForm() {
         return(
             <div>
-                <button onClick={this.handleNewChangeset.bind(this)}>
-                    {`Generate New Changeset: ${this.state.changeset}`}
-                </button>
+                {this.renderGenerateChangeset()}
                 <form onSubmit={this.handleFileUpload}>
                     <label>
                         ShapeFile (.zip)
@@ -194,6 +205,7 @@ class App extends Component {
     }
     handleFileUpload(event) {
         event.preventDefault();
+        console.log("upload");
         if (!this.state.shpfile) {
             alert('Please upload a shape file');
         } else {
@@ -241,9 +253,10 @@ class App extends Component {
 
 
     handleSubmit(event) {
+        event.preventDefault();
+        console.log("hell0");
         // createNode(this.state.tags, this.state.lat, this.state.lon);
         addNode(136331, this.state.tags, this.state.lat, this.state.lon);
-        event.preventDefault();
     }
 
     handleLat(event) {
@@ -311,6 +324,10 @@ class App extends Component {
                 console.log(el);
             }
         });
+    }
+
+    handleChangesetDesc(event) {
+        this.setState({csd: event.target.value})
     }
 
 
