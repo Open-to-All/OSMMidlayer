@@ -10,7 +10,7 @@ const headers = new Headers(
     }
 );
 
-const defaultTags = "<tag k=\"project\" v=\"OSM-Midlayer\">";
+const defaultTags = "<tag k=\"project\" v=\"OSM-Midlayer\"/>";
 
 const endpoint = 'https://master.apis.dev.openstreetmap.org/api/0.6/';
 // const endpoint =  'https://api.openstreetmap.org/api/0.6/';
