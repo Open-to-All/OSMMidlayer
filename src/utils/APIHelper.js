@@ -10,7 +10,7 @@ const headers = new Headers(
     }
 );
 
-const defaultTags = "<tag k=\"project\" v=\"OSM-Midlayer\"/>";
+const defaultTags = "<tag k=\"project\" v=\"opensidewalks\"/>";
 
 const endpoint = 'https://master.apis.dev.openstreetmap.org/api/0.6/';
 // const endpoint =  'https://api.openstreetmap.org/api/0.6/';
@@ -265,7 +265,13 @@ export async function handleCurbRampShapeFile(geojsons, changeset) {
 
     for (const geojson of geojsons) {
         let tags = defaultTags;
-        let description = '';
+
+        // TODO - Refactor required Kerb Tags
+        tags += createTag('kerb', 'lowered');
+        tags += createTag('barrier', 'kerb');
+
+        tags += createTag('tactile_paving', 'yes');
+                let description = '';
         // Parse Keys
         console.log(geojson);
         for (const key of Object.keys(geojson.properties)) {
