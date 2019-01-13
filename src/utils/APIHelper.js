@@ -1,12 +1,14 @@
 //@flow
 import React from 'react';
 import Node from '../OSMComponents/Node';
+// AC: wondering what the OSMComponents/Way is for given that you have ways here but not importing that file
 
 // TODO: Use await instead of then
 const headers = new Headers(
     {
         'Content-Type': 'text/xml; charset=utf-8',
         'Authorization': 'Basic ' + btoa('nthnll@uw.edu:fqXD89cHhg8LARZB') // TODO: oauth?
+        //AC: we should use our OAuth server for this purpose.
     }
 );
 
@@ -31,6 +33,7 @@ export async function initChangeset(comment = "Playing with API") {
         "</osm>";
     console.log(changeset_xml);
     try {
+        //AC: wondering about your hard coding the endpoint throughout since you defined that as a string above
         const initChangesetResponse = await fetch(
             'https://master.apis.dev.openstreetmap.org/api/0.6/changeset/create',
             {
@@ -156,6 +159,8 @@ function wayNodeXML(id: number) {
  * @param crossingList
  * @returns {Promise<void>}
  */
+//AC: this should be generalized in terms of having a JSON describing how the node or way objects need to be tagged based on the XML input.
+//AC: I also see that you have a scope problem where you are creating the crossing into a hard coded changeset. 
 export async function handleCrossingJSON(crossingList: Array) {
     let response = [];
     for (const el in crossingList) {
@@ -183,6 +188,7 @@ export async function handleCrossingJSON(crossingList: Array) {
     return response;
 }
 /*
+
 COMPTYPE: 97
 CONDITION: "FAIR"
 CONDITION_ASSESSMENT_DATE: 1496880000000
