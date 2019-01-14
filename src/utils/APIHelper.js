@@ -1,20 +1,22 @@
 //@flow
 import React from 'react';
 import Node from '../OSMComponents/Node';
+import Way from '../OSMComponents/Way';
+import { headers, defaultTags, endpoint } from '../constants/OSMConstants'
 // AC: wondering what the OSMComponents/Way is for given that you have ways here but not importing that file
 
 // TODO: Use await instead of then
-const headers = new Headers(
-    {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'Authorization': 'Basic ' + btoa('nthnll@uw.edu:fqXD89cHhg8LARZB') // TODO: oauth?
-        //AC: we should use our OAuth server for this purpose.
-    }
-);
-
-const defaultTags = "<tag k=\"project\" v=\"opensidewalks\"/>";
-
-const endpoint = 'https://master.apis.dev.openstreetmap.org/api/0.6/';
+// const headers = new Headers(
+//     {
+//         'Content-Type': 'text/xml; charset=utf-8',
+//         'Authorization': 'Basic ' + btoa('nthnll@uw.edu:fqXD89cHhg8LARZB') // TODO: oauth?
+//         //AC: we should use our OAuth server for this purpose.
+//     }
+// );
+//
+// const defaultTags = "<tag k=\"project\" v=\"opensidewalks\"/>";
+//
+// const endpoint = 'https://master.apis.dev.openstreetmap.org/api/0.6/';
 // const endpoint =  'https://api.openstreetmap.org/api/0.6/';
 
 // TODO TODO TODO - Handle adding project tag
@@ -25,17 +27,13 @@ const endpoint = 'https://master.apis.dev.openstreetmap.org/api/0.6/';
 
 // TODO - take a look at other tags https://wiki.openstreetmap.org/wiki/Changeset#Tags_on_changesets
 export async function initChangeset(comment = "Playing with API") {
-    const changeset_xml = "<osm>\n" +
-        "  <changeset>\n" +
-        "    <tag k=\"created_by\" v=\"OSM-Midlayer\"/>\n" +
-        `    <tag k="comment" v="${comment}"/>\n` +
-        "  </changeset>\n" +
-        "</osm>";
+    const changeset_xml = `<osm><changeset><tag k="created_by" v="OSM-Midlayer"/><tag k="comment" v="${comment}"/>`
+        + "  </changeset></osm>";
     console.log(changeset_xml);
     try {
         //AC: wondering about your hard coding the endpoint throughout since you defined that as a string above
         const initChangesetResponse = await fetch(
-            'https://master.apis.dev.openstreetmap.org/api/0.6/changeset/create',
+            endpoint + 'create',
             {
                 method: 'PUT',
                 headers,
@@ -51,13 +49,6 @@ export async function initChangeset(comment = "Playing with API") {
 
 // NODE
 // ---------------------------------------------------------------------------------------------------------------------
-
-
-// TODO - Error, Combine with AddNode
-export function createNode(tags, lat, lon) {
-    initChangeset().then(changeset => addNode(changeset, tags, lat, lon));
-}
-
 /**
  *
  * @param lat
@@ -72,7 +63,7 @@ export async function addNode(changeset: number,  tags?: string, lat: number, lo
         " </node>\n" +
         "</osm>";
     const response = await fetch(
-        'https://master.apis.dev.openstreetmap.org/api/0.6/node/create',
+        endpoint + 'create',
         {
             method: 'PUT',
             headers,
@@ -86,7 +77,7 @@ export async function addNode(changeset: number,  tags?: string, lat: number, lo
 export async function readNode(id: number) {
     try {
         const response = await fetch(
-            `https://master.apis.dev.openstreetmap.org/api/0.6/node/${id}`,
+            endpoint + `node/${id}`,
             {
                 method: 'GET',
                 headers
@@ -110,11 +101,11 @@ export async function addWay(changeset: number, tags?: string, nodes: number): P
     console.log(xml_string);
     try {
         if (!changeset) {
-            changeset = await initChangeset("Adding a Way"); // TODO
+            return "Must give a changeset";
         }
 
         const id = await fetch(
-            'https://master.apis.dev.openstreetmap.org/api/0.6/way/create',
+            endpoint + 'create',
             {
                 method: 'PUT',
                 headers,
@@ -141,7 +132,7 @@ export async function addWayByNodes(changeset: number, tags?: string, nodeStart:
         if(!changeset) {
             changeset = await initChangeset("Adding a Way"); // TODO
         }
-        // TODO - Separtae Way Tags and Node Tags
+        // TODO - Separate Way Tags and Node Tags
         const nodeStartId = await addNode(changeset, null, nodeStart.lat, nodeStart.lon);
         const nodeEndId = await addNode(changeset, null, nodeEnd.lat, nodeEnd.lon);
         return await addWay(changeset, tags, [wayNodeXML(nodeStartId), wayNodeXML(nodeEndId)]);

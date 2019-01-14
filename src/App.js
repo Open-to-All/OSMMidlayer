@@ -8,7 +8,6 @@ import {
     addNode,
     addWay,
     addWayByNodes,
-    createNode,
     handleCrossingJSON,
     handleSidewalkJSON, handleCurbRampShapeFile
 } from './utils/APIHelper';
