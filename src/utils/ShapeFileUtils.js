@@ -10,7 +10,7 @@ shp('../../regeojsonformat.zip').then( data => console.log(data));
  * @param lrlon lon or lower right point
  * @param geojsons array of geojsons
  */
-export function     inCoord(ullat, ullon, lrlat, lrlon, geojsons) {
+export function inCoord(ullat, ullon, lrlat, lrlon, geojsons) {
     return geojsons.filter(function(geojson) {
         const coord = geojson.geometry.coordinates;
         // console.log(coord);

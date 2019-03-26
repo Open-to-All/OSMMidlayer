@@ -1,8 +1,10 @@
 //@flow
 import React from 'react';
-import Node from '../OSMComponents/Node';
-import Way from '../OSMComponents/Way';
+import Node from '../utils/Node';
+import Way from '../utils/Way';
 import { headers, defaultTags, endpoint } from '../constants/OSMConstants'
+import * as turf from '@turf/turf'
+import {OSMElementTypes} from "../constants/OSMElements";
 // AC: wondering what the OSMComponents/Way is for given that you have ways here but not importing that file
 
 // TODO: Use await instead of then
@@ -37,7 +39,8 @@ export async function initChangeset(comment = "Playing with API") {
             {
                 method: 'PUT',
                 headers,
-                body: changeset_xml
+                body: changeset_xml,
+                mode: 'cors'
             }
         );
         const changesetNumber = initChangesetResponse.text();
@@ -298,4 +301,192 @@ function createTag(k: string, v: string) {
     return `<tag k="${k}" v="${v}"/>`;
 }
 
+export function parseToXML(text: string) {
+    const parser = new DOMParser();
+    return parser.parseFromString(text, 'text/xml');
+}
+
+export function parseToOSMElements(text: string) {
+    const xml = parseToXML(text);
+    const nodes = xml.getElementsByTagName('node');
+    const ways = xml.getElementsByTagName('way');
+    const relations = xml.getElementsByTagName('relation');
+    return {nodes, ways, relations}
+}
+
+
+// TODO - Should we create geoms right away? Or leave that also up to an option / diff api call
+export function parseXMLElementsToObj(elements: Object): Object {
+    const nodes = Node.parseAll(elements['nodes']);
+    const ways = Way.parseAll(elements['ways']);
+    // const relations = Relation.parseAll(elements['relations']); TODO?
+    return {nodes, ways}
+}
+
+
+// TODO - OSM returns all of the nodes of any way that enters into the bounding box (nodes outside of bbox)
+export async function getBoundingBox(top: number, right: number, bottom: number, left: number) {
+    try {
+
+        const elements = await fetch(
+            endpoint + `map?bbox=${left},${bottom},${right},${top}`,
+            {
+                method: 'GET',
+                headers
+            }
+        ).then(response => response.text()
+        ).then(xml_string => parseToOSMElements(xml_string));
+        return elements;
+    } catch (err) {
+        return err;
+    }
+}
+
+// TODO - Want to Generalize
+// export function filterToElement(elements: Object, ) {
+//
+// }
+
+// Get crosswalks and Curbs
+// Elements should be of form:
+// {
+//     nodes: list of nodes,
+//     ways: list of ways,
+//     relations: list of relations
+// }
+// As parsed by parseXMLElementsToObj
+export function getCrossingElements(elements: Object) {
+    Way.associateNodesToWays(elements.ways, elements.nodes);
+    let curbs = [], crossings = [], sidewalks = [];
+    for (const node of elements.nodes) {
+        // TODO - BETTER STYLE???
+        if (node.tags['kerb'] == 'lowered') {
+            curbs.push(node);
+        }
+    }
+
+    for (const way of elements.ways) {
+        if (way.tags['highway'] == 'footway') {
+            if (way.tags['footway'] == 'crossing') {
+                crossings.push(way);
+            } else if (way.tags['footway'] == 'sidewalk') {
+                sidewalks.push(way);
+            }
+        }
+    }
+    return {curbs, crossings, sidewalks}
+}
+
+// TODO - Might deprecate in favor of forcing geoms ; esp because of ways' issue
+function checkAndInitGeom(element: Object) {
+    if (!element.geom) {
+        if (element.type == OSMElementTypes.NODE) {
+            Node.associateGeom(element)
+        } else if (element.type == OSMElementTypes.WAY) {
+            if (!element.node_objs) {
+                throw "Way does not have associated node_objs"
+            }
+            Way.associateGeom(element, element.node_objs);
+        }
+    }
+}
+
+function getNearestWay(node: Object, ways: Object[]): Object {
+   checkAndInitGeom(node);
+    let nearestWay;
+    let shortestDist;
+    for (const way of ways) {
+        if (!way.geom) {
+            // TODO - Throw error if way.node_objs uninit? Or design so never a problem
+            Way.associateGeom(way, way.node_objs);
+        }
+        const currDist = turf.pointToLinDistance(node.geom, way.geom);
+        if (!shortestDist || currDist < shortestDist) {
+            shortestDist = currDist;
+            nearestWay = way;
+        }
+    }
+    return nearestWay;
+}
+
+
+
+function nearestPointOnLine(node: Object, way: Object): Object {
+    checkAndInitGeom(node);
+    checkAndInitGeom(way);
+    const nearestPoint = turf.nearestPointOnLine(way.geom, node.geom);
+    return nearestPoint.geometry.coordinates;
+
+}
+
+
+export async function linkCurbToSidewalk(curbs: Object, sidewalks: Object) {
+    for (const curb of curbs) {
+        const nearestSidewalk = getNearestWay(curb, sidewalks);
+        // Edit sidewalk to link to, add node at point to snap
+        // Add way snap
+        const linkTo = nearestPointOnLine(curb, nearestSidewalk);
+        // TODO - in order to add the node to the way, we'll have to find the two nodes the node is in between, this probably means we'll have to check for intersection between each node and if the node is directly between two ways
+        const linkToLon = linkTo.geometry.coordinates[0];
+        const linkToLat = linkTo.geometry.coordinates[1];
+        const linkNode = Node.asNode(undefined, linkToLat, linkToLon);
+
+        // Generate Tags for CurbLink
+        let tags = createTag('footway', 'sidewalk');
+        tags += createTag('highway', 'footway');
+        // Add node and get id
+        const changeset = 0;
+        console.error("Breakpoint lul");
+        const linkNodeId = await addNode(changeset, tags, linkToLat, linkToLon);
+
+        // TODO - Factor out?
+        // Find where the node should be in the way space / geom
+        // Want to use turf.booleanPointOnLine, but isn't super accurate so we'll look for the nearest line segment
+        const coor = nearestSidewalk.geometry.coordinates;
+        let minDist = undefined;
+        let outerPoints = [];
+        for (let i = 0; i < coor.length - 1; i++) {
+            const currLine = turf.lineString([coor[i], coor[i+1]]);
+            const currDist = turf.pointToLineDistance(linkTo, currLine);
+            if (!minDist || currDist < minDist) {
+                minDist = currDist;
+                outerPoints = [coor[i], coor[i+1]];
+            }
+        }
+
+        // Gen new list of ids
+        let newIds = nearestSidewalk.nodes.splice(0);
+
+        // Each id corresponds to a node, go through the node until we find where to insert the new node
+        const nodeObjs = nearestSidewalk.node_objs;
+        for (let i = 0; i < nodeObjs.length - 1; i++) {
+            const coor1 = [nodeObjs[i].lat, nodeObjs[i].lon];
+            const coor2 = [nodeObjs[i+1].lat, nodeObjs[i+1].lon];
+            if (
+                coor1[0] == outerPoints[0][0] &&
+                coor1[1] == outerPoints[0][1] &&
+                coor2[0] == outerPoints[1][0] &&
+                coor2[1] == outerPoints[1][1]
+            ) {
+                newIds.splice(linkNodeId, i + 1, 0); // TODO - maybe also add new node into other system
+            }
+        }
+
+        // Now that we know where the new point goes, add the
+        // Add linkTo Node API CALL
+        // Add way from curb to linkTo Node
+        // API CALL
+    }
+}
+
+// 47.65526,-122.31228
+// 47.65546,-122.31188
+
+export function parseTags(element: Object) {
+    const XMLtags = element.getElementsByTagName('tag');
+    const tags = {};
+    for (const tag of tags) {
+
+    }
+}
 // export async function addCrossing

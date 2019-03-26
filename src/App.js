@@ -68,6 +68,7 @@ class App extends Component {
                 <header className="App-header">
                     {this.renderFileInputForm() }
                     {/*{this.renderNodeForm()}*/}
+                    {console.log("does this work?")}
                 </header>
             </div>
         );

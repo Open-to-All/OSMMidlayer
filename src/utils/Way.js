@@ -4,6 +4,9 @@
 // export async function addWay(changeset: number, tag: Object, nodes: Array<number>): Promise {
 import {endpoint, headers} from "../constants/OSMConstants";
 import {addNode, initChangeset} from "./APIHelper";
+import {OSMElementTypes} from "../constants/OSMElements";
+import * as turf from '@turf/helpers'
+
 
 async function add(changeset: number, tags?: string, nodes: number): Promise {
     const xml_string = generateXML(changeset, tags, nodes);
@@ -58,4 +61,90 @@ function wayNodeXML(id: number) {
     return `<nd ref="${id}"/>`;
 }
 
-export default { add, generateXML, addByNodes }
+function parseXMLToObj(xmlNode: XMLDocument): Object {
+    const htmlWay = xmlNode.documentElement;
+    const htmlTags = htmlWay.getElementsByTagName('tag');
+    const tags = {};
+    for (let i = 0; i < htmlTags.length; i++) {
+        const tag = htmlTags[i];
+        tags[tag.getAttribute('k')] = tag.getAttribute('v');
+    }
+
+    const htmlNodes = htmlWay.getElementsByTagName('nd');
+    const nodes = [];
+    for (let i = 0; i < htmlNodes.length; i++) {
+        const nd = htmlNodes[i];
+        nodes.push(nd.getAttribute('ref'))
+    }
+
+    return {
+        type: OSMElementTypes.WAY,
+        id: parseInt(htmlWay.getAttribute('id')),
+        version: parseInt(htmlWay.getAttribute("version")),
+        changeset: parseInt(htmlWay.getAttribute("version")),
+        user: htmlWay.getAttribute("user"),
+        uid: parseInt(htmlWay.getAttribute("uid")),
+        visible: Boolean(htmlWay.getAttribute("visible")),
+        timestamp: new Date(Date.parse(htmlWay.getAttribute("timestamp"))),
+        tags,
+        nodes
+    };
+}
+
+// TODO - BUG: A circular way will cause issues !!!!
+/**
+ * Gets the node objects that make up the way based on the way's node ids
+ *
+ * @param way
+ * @param nodes
+ * @returns {Array}
+ */
+function getNodeObjects(way: Object, nodes: Object[]) {
+    const relevantNodes = [];
+    const wayNodes = new Set(way['nodes']);
+    for (const node of nodes) {
+        const id = node['id'];
+        if (wayNodes.has(id)) {
+            relevantNodes.push(node);
+            wayNodes.delete(id);
+        }
+        if(wayNodes.length <= 0) {
+            break;
+        }
+    }
+    return relevantNodes;
+}
+
+function associateNodesToWays(ways: Object[], nodes: Object[]) {
+    for (const way of ways) {
+        way['node_objs'] = getNodeObjects(way, nodes);
+    }
+}
+
+
+function parseAll(xmlWays: XMLDocument[]): Object[] {
+    const ways = [];
+    for (const xmlWay of xmlWays) {
+        ways.push(parseXMLToObj(xmlWay));
+    }
+    return ways;
+}
+
+function toGeom(way: Object, nodes: Object[] ): Object {
+    const coors = [];
+    for (const node of nodes) {
+        coors.push([node['lon'], node['lat']]);
+    }
+    return turf.lineString(coors)
+}
+
+function associateGeom(way: Object, nodes: Object[] ): Object {
+    way['geom'] = toGeom(way, nodes);
+}
+
+// function updateGeom (way:Object, lineString: Object) {
+//     way['geom'] = lineString;
+//     way['node_objs']
+// }
+
+export default { add, generateXML, addByNodes, parseXMLToObj, toGeom, associateGeom, associateNodesToWays, parseAll }
