@@ -1,7 +1,7 @@
 export const headers = new Headers(
     {
         'Content-Type': 'text/xml; charset=utf-8',
-        'Authorization': 'Basic ' + btoa('nthnll@uw.edu:fqXD89cHhg8LARZB')
+        'Authorization': 'Basic ' + btoa('nthnll@uw.edu:fqXD89cHhg8LARZB'),
         //AC: we should use our OAuth server for this purpose.
     }
 );

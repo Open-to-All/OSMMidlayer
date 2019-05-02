@@ -30,17 +30,16 @@ import {OSMElementTypes} from "../constants/OSMElements";
 // TODO - take a look at other tags https://wiki.openstreetmap.org/wiki/Changeset#Tags_on_changesets
 export async function initChangeset(comment = "Playing with API") {
     const changeset_xml = `<osm><changeset><tag k="created_by" v="OSM-Midlayer"/><tag k="comment" v="${comment}"/>`
-        + "  </changeset></osm>";
-    console.log(changeset_xml);
+        + "</changeset></osm>";
+    console.log('Changeset: ' + changeset_xml);
     try {
         //AC: wondering about your hard coding the endpoint throughout since you defined that as a string above
         const initChangesetResponse = await fetch(
-            endpoint + 'create',
+            endpoint + 'changeset/create',
             {
                 method: 'PUT',
                 headers,
-                body: changeset_xml,
-                mode: 'cors'
+                body: changeset_xml
             }
         );
         const changesetNumber = initChangesetResponse.text();
@@ -60,19 +59,25 @@ export async function initChangeset(comment = "Playing with API") {
  * @param changeset
  */
 export async function addNode(changeset: number,  tags?: string, lat: number, lon: number) {
+    tags = tags ? tags : '';
+    // TODO - es6 var injection
     const xml_string = "<osm>\n" +
         " <node changeset=\"" + changeset + "\" lat=\"" + lat +"\" lon=\"" + lon + "\">\n" +
         tags +
         " </node>\n" +
         "</osm>";
+    // console.log(xml_string);
     const response = await fetch(
-        endpoint + 'create',
+        endpoint + 'node/create',
         {
             method: 'PUT',
             headers,
             body: xml_string
         }
     );
+    if (!response.ok) {
+        console.log(`StatusText: ${response.statusText} \n XML: ${xml_string}`);
+    }
     const id = response.text();
     return id;
 }
@@ -99,22 +104,29 @@ export async function readNode(id: number) {
 
 // Change type of tag and nodes
 // export async function addWay(changeset: number, tag: Object, nodes: Array<number>): Promise {
-export async function addWay(changeset: number, tags?: string, nodes: number): Promise {
+export async function addWay(changeset: number, tags?: string, nodes: string): Promise {
     const xml_string = `<osm><way changeset="${changeset}">${tags}${nodes}</way></osm>`;
-    console.log(xml_string);
+    // console.log(xml_string);
     try {
         if (!changeset) {
             return "Must give a changeset";
         }
 
         const id = await fetch(
-            endpoint + 'create',
+            endpoint + 'way/create',
             {
                 method: 'PUT',
                 headers,
                 body: xml_string
             }
-        ).then(response => response.text());
+        ).then(
+            response => {
+                if (!response.ok) {
+                    console.log(`StatusText: ${response} \n XML: ${xml_string}`);
+                }
+                return response.text();
+            }
+        );
         alert("Way Created: " + id);
         return id;
     } catch (err) {
@@ -130,15 +142,17 @@ export async function addWay(changeset: number, tags?: string, nodes: number): P
  * @param nodeEnd - Must have keys lat, lon
  * @returns {Promise<*>}
  */
-export async function addWayByNodes(changeset: number, tags?: string, nodeStart: Object, nodeEnd: Object) {
+export async function addWayByNodes(changeset: number, tags?: string, nodes: Array<Object>) {
     try {
         if(!changeset) {
             changeset = await initChangeset("Adding a Way"); // TODO
         }
         // TODO - Separate Way Tags and Node Tags
-        const nodeStartId = await addNode(changeset, null, nodeStart.lat, nodeStart.lon);
-        const nodeEndId = await addNode(changeset, null, nodeEnd.lat, nodeEnd.lon);
-        return await addWay(changeset, tags, [wayNodeXML(nodeStartId), wayNodeXML(nodeEndId)]);
+        let nodeXMLs = '';
+        for (const node of nodes) {
+            nodeXMLs += wayNodeXML(await addNode(changeset, null, node.lat, node.lon));
+        }
+        return await addWay(changeset, tags, nodeXMLs);
     } catch (err) {
         return err;
     }
@@ -156,32 +170,59 @@ function wayNodeXML(id: number) {
 //AC: this should be generalized in terms of having a JSON describing how the node or way objects need to be tagged based on the XML input.
 //AC: I also see that you have a scope problem where you are creating the crossing into a hard coded changeset. 
 export async function handleCrossingJSON(crossingList: Array) {
+    console.log("hello");
     let response = [];
-    for (const el in crossingList) {
-        const json = crossingList[el];
+    const total = crossingList.length;
+    let curr = 1618; //skipped 1616
+    // for (const el in crossingList) {
+    for (let i = curr; i < total; i++) {
+        console.log(`${i} of ${total}`);
+        const json = crossingList[i];
+        console.log(json);
         let tags = '';
         const properties = json.properties;
-        console.log(properties);
-        tags += createTag('sloped_curb',properties.curbramps ? 'yes' : 'no');
-        if (!properties.marked) {
-            tags += createTag('crossing', 'unmarked');
-        }
-
-        if (properties.street_name) {
-            tags += createTag('name', properties.street_name);
-        }
-
-        // for (const key of Object.keys(crossingJson.properties)) { // TODO - will need to map GEOJSON to OSM
+        // console.log(properties);
+        // tags += createTag('sloped_curb',properties.curbramps ? 'yes' : 'no');
+        // if (!properties.marked) {
+        //     tags += createTag('crossing', 'unmarked');
         // }
-        const nodeStartCoor = json.geometry.coordinates[0];
-        const nodeStart = {lon: nodeStartCoor[0], lat: nodeStartCoor[1]};
-        const nodeEndCoor = json.geometry.coordinates[1];
-        const nodeEnd = {lon: nodeEndCoor[0], lat: nodeEndCoor[1]};
-        response.push(await(addWayByNodes(136744, tags, nodeStart, nodeEnd)));
+        //
+        // if (properties.street_name) {
+        //     tags += createTag('name', properties.street_name);
+        // }
+        for (const key in properties) { // TODO - will need to map GEOJSON to OSM
+            // TODO - strip '</>' characters?
+            if (properties[key] == '<Null>') {
+                properties[key] = 'null';
+            }
+            tags += createTag(key, properties[key]);
+        }
+        const geomType = json.geometry.type;
+        // TODO: Actually handle cases
+        let line;
+        // TODO - combine strings
+        if(geomType == 'MultiLineString') {
+            line = json.geometry.coordinates[0];
+        } else if (geomType == 'Point') {
+            const coor = json.geometry.coordinates;
+            response.push(addNode(147223, tags, coor[1], coor[0]));
+        } else if (geomType == 'GeometryCollection') {
+          // const geometries = json.geometry.geometries;
+          // todo
+        } else {
+            line = json.geometry.coordinates;
+            let nodes = [];
+            for (const node of line) {
+                nodes.push({lon: node[0], lat: node[1]})
+            }
+            response.push(await(addWayByNodes(147223, tags, nodes)));
+        }
+
     }
     return response;
 }
 /*
+
 
 COMPTYPE: 97
 CONDITION: "FAIR"

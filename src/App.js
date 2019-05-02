@@ -9,9 +9,9 @@ import {
     addWay,
     addWayByNodes,
     handleCrossingJSON,
-    handleSidewalkJSON, handleCurbRampShapeFile
+    handleSidewalkJSON, handleCurbRampShapeFile, parseToXML
 } from './utils/APIHelper';
-import {smallcrossings, smallsidewalks} from "./JsonData/smalljsons";
+import {smallcrossings, smallsidewalks, smallCrosswalks} from "./JsonData/smalljsons";
 import shp from 'shpjs';
 import {inCoord} from "./utils/ShapeFileUtils";
 
@@ -48,7 +48,7 @@ class App extends Component {
         this.handleSubmitJson = this.handleSubmitJson.bind(this);
         // this.handleSidewalkGeoJSON = this.handleSidewalkGeoJSON.bind(this);
         // this.handleCrossingGeoJSON = this.handleCrossingGeoJSON.bind(this);
-        this.state.json = JSON.parse(smallsidewalks); //list
+        this.state.json = JSON.parse(smallCrosswalks); //list
         // console.log(this.state.json);
 
         // FILE UPLOAD
@@ -60,14 +60,21 @@ class App extends Component {
         this.handleLRLon = this.handleLRLon.bind(this);
 
         this.handleChangesetDesc = this.handleChangesetDesc.bind(this);
+
+        this.handleGJFileUpload = this.handleGJFileUpload.bind(this);
+        // const kmlxml = parseToXML(kml);
+        // console.log(kmlxml);
+        // const collection = kmlxml.getElementsByTagName('Data');
+        // console.log(collection[0]);
+
     }
 
     render() {
         return (
             <div className="App">
                 <header className="App-header">
-                    {this.renderFileInputForm() }
-                    {/*{this.renderNodeForm()}*/}
+                    {this.renderGeoJsonInputForm() }
+                    {this.renderNodeForm()}
                     {console.log("does this work?")}
                 </header>
             </div>
@@ -200,6 +207,21 @@ class App extends Component {
         )
     };
 
+    renderGeoJsonInputForm(){
+        return(
+            <div>
+                {this.renderGenerateChangeset()}
+                <form onSubmit={this.handleGJFileUpload}>
+                    <label>
+                        File (.geojson)
+                        <input type='file' onChange={ (f) => this.handleNewFile(f.target.files)}/>
+                    </label>
+                    <input type="submit" value="Submit geojson"/>
+                </form>
+            </div>
+        );
+    }
+
     handleNewFile(files) {
         this.setState({shpfile: files[0]});
     }
@@ -234,6 +256,41 @@ class App extends Component {
                         );
                     }
                 );
+            };
+        }
+    }
+    handleGJFileUpload(event) {
+        event.preventDefault();
+        console.log('Handle GJ File Upload');
+        if (!this.state.shpfile) {
+            alert('Please upload a file');
+        } else {
+            const changeset = this.state.changeset;
+            const file = this.state.shpfile;
+            const fileData = new FileReader();
+            fileData.readAsText(file);
+            fileData.onload = function () {
+                const file = fileData.result;
+                const json = JSON.parse(file);
+                handleCrossingJSON(json.features).then(
+                    response => {
+                        for (const el of response) {
+                            console.log(el);
+                        }
+                    }
+                )
+                // shp(file).then(function (data) {
+                //         const geojsons = data.features;
+                //         alert(data);
+                //         // handleCurbRampShapeFile(inCoord(ullat, ullon, lrlat, lrlon, geojsons), changeset).then(
+                //         //     response => {
+                //         //         for (const el of response) {
+                //         //             console.log(el);
+                //         //         }
+                //         //     }
+                //         // );
+                //     }
+                // );
             };
         }
     }
@@ -329,9 +386,6 @@ class App extends Component {
     handleChangesetDesc(event) {
         this.setState({csd: event.target.value})
     }
-
-
-
 }
 
 export default App;
